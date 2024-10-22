@@ -24,18 +24,11 @@ class _PaymentScreenState extends State<PaymentScreen> {
   }
 
   Future<void> _markAsPaid(int houseId) async {
-    await _dbHelper.markRenterAsPaid(houseId);
+    final DateTime now = DateTime.now();
+    await _dbHelper.markRenterAsPaid(houseId, now.month, now.year);
     _loadHouses(); // Refresh the list
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Renter marked as paid!')),
-    );
-  }
-
-  Future<void> _markAsNotPaid(int houseId) async {
-    await _dbHelper.markRenterAsNotPaid(houseId);
-    _loadHouses(); // Refresh the list
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Renter marked as not paid!')),
     );
   }
 
@@ -55,26 +48,15 @@ class _PaymentScreenState extends State<PaymentScreen> {
               title: Text(house['renter'] ?? 'No Renter'),
               subtitle: Text(
                 'Location: ${house['location']} - Rent: \$${house['price']}\n'
-                'Payment Status: ${house['paid'] == 1 ? "Paid" : "Not Paid"}',
+                'Payment Status: ${house['paid'] == 1 ? "Paid" : "Not Paid"} - '
+                'Months Paid: ${house['months_paid']}',
               ),
-              trailing: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  ElevatedButton(
-                    onPressed: house['paid'] == 1 ? null : () => _markAsPaid(house['id']),
-                    child: Text('Mark Paid'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: house['paid'] == 1 ? Colors.green : Colors.blue,
-                    ),
-                  ),
-                  ElevatedButton(
-                    onPressed: house['paid'] == 0 ? null : () => _markAsNotPaid(house['id']),
-                    child: Text('Mark Not Paid'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: house['paid'] == 0 ? Colors.red : Colors.grey,
-                    ),
-                  ),
-                ],
+              trailing: ElevatedButton(
+                onPressed: house['paid'] == 1 ? null : () => _markAsPaid(house['id']),
+                child: Text('Mark Paid'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: house['paid'] == 1 ? Colors.green : Colors.blue,
+                ),
               ),
             ),
           );

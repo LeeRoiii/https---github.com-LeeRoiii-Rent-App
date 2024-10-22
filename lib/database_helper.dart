@@ -19,7 +19,7 @@ class DatabaseHelper {
     String path = join(await getDatabasesPath(), 'housing.db');
     return await openDatabase(
       path,
-      version: 3, // Incremented version for new column
+      version: 5, // Incremented version for new columns
       onCreate: (db, version) {
         return db.execute(
           'CREATE TABLE houses ('
@@ -31,22 +31,25 @@ class DatabaseHelper {
           'renter_email TEXT, '
           'renter_contact_number TEXT, '
           'available INTEGER, '
-          'paid INTEGER DEFAULT 0)', // New column to track payment status
+          'paid INTEGER DEFAULT 0, ' // New column to track payment status
+          'months_paid INTEGER DEFAULT 0, ' // New column to track number of months paid
+          'payment_month INTEGER, ' // Month of payment
+          'payment_year INTEGER ' // Year of payment
+          ')',
         );
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
-          await db.execute(
-            'ALTER TABLE houses ADD COLUMN renter_email TEXT',
-          );
-          await db.execute(
-            'ALTER TABLE houses ADD COLUMN renter_contact_number TEXT',
-          );
+          await db.execute('ALTER TABLE houses ADD COLUMN renter_email TEXT');
+          await db.execute('ALTER TABLE houses ADD COLUMN renter_contact_number TEXT');
         }
         if (oldVersion < 3) {
-          await db.execute(
-            'ALTER TABLE houses ADD COLUMN paid INTEGER DEFAULT 0', // Add paid column
-          );
+          await db.execute('ALTER TABLE houses ADD COLUMN paid INTEGER DEFAULT 0');
+        }
+        if (oldVersion < 4) {
+          await db.execute('ALTER TABLE houses ADD COLUMN months_paid INTEGER DEFAULT 0');
+          await db.execute('ALTER TABLE houses ADD COLUMN payment_month INTEGER');
+          await db.execute('ALTER TABLE houses ADD COLUMN payment_year INTEGER');
         }
       },
     );
@@ -86,24 +89,33 @@ class DatabaseHelper {
     );
   }
 
-  Future<void> markRenterAsPaid(int houseId) async {
+  Future<void> markRenterAsPaid(int houseId, int month, int year) async {
     final db = await database;
-    await db.update(
-      'houses',
-      {'paid': 1}, // Set paid status to 1
-      where: 'id = ?',
-      whereArgs: [houseId],
-    );
-  }
 
-  Future<void> markRenterAsNotPaid(int houseId) async {
-    final db = await database;
-    await db.update(
+    // Get the current status of the house
+    final List<Map<String, dynamic>> house = await db.query(
       'houses',
-      {'paid': 0}, // Set paid status to 0
       where: 'id = ?',
       whereArgs: [houseId],
     );
+
+    if (house.isNotEmpty) {
+      // Cast the retrieved values to the correct types
+      int monthsPaid = house[0]['months_paid'] as int? ?? 0;
+
+      // Update to mark as paid
+      await db.update(
+        'houses',
+        {
+          'paid': 1, // Set paid status to 1
+          'payment_month': month, // Save the month
+          'payment_year': year, // Save the year
+          'months_paid': monthsPaid + 1, // Increment months paid
+        },
+        where: 'id = ?',
+        whereArgs: [houseId],
+      );
+    }
   }
 
   Future<void> deleteHouse(int houseId) async {

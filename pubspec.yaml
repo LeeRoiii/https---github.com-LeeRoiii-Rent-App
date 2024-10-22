@@ -37,7 +37,7 @@ dependencies:
   cupertino_icons: ^1.0.8
   sqflite: ^2.4.0
   fl_chart: ^0.69.0
-  inspireui: ^2.2.2
+
 
 dev_dependencies:
   flutter_test:

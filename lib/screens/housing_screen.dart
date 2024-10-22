@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import '../database_helper.dart';
+import 'house_form_widget.dart';
+import 'renter_form_widget.dart';
+import 'search_and_filter_widget.dart';
 
 class HousingScreen extends StatefulWidget {
   @override
@@ -12,16 +15,9 @@ class _HousingScreenState extends State<HousingScreen> {
   List<Map<String, dynamic>> _filteredHouses = [];
   final _houseFormKey = GlobalKey<FormState>();
   final _renterFormKey = GlobalKey<FormState>();
-  String _houseName = '';
-  String _location = '';
-  int _price = 0;
-  String _renterName = '';
-  String _renterEmail = '';
-  String _renterContactNumber = '';
-  int? _selectedHouseId;
-
   String _searchQuery = '';
   String _availabilityFilter = 'All';
+  bool _isLoading = true;
 
   @override
   void initState() {
@@ -30,6 +26,7 @@ class _HousingScreenState extends State<HousingScreen> {
   }
 
   Future<void> _loadHouses() async {
+    setState(() => _isLoading = true);
     final houses = await _dbHelper.getHouses();
     setState(() {
       _houses = houses.map((house) {
@@ -42,7 +39,8 @@ class _HousingScreenState extends State<HousingScreen> {
           'available': house['available'] as int,
         };
       }).toList();
-      _filteredHouses = _houses; // Initialize filtered houses
+      _filteredHouses = _houses;
+      _isLoading = false;
     });
   }
 
@@ -53,7 +51,7 @@ class _HousingScreenState extends State<HousingScreen> {
             .toString()
             .toLowerCase()
             .contains(_searchQuery.toLowerCase());
-        
+
         final matchesAvailability = (_availabilityFilter == 'All') ||
             (_availabilityFilter == 'Available' && house['available'] == 1) ||
             (_availabilityFilter == 'Rented' && house['available'] == 0);
@@ -63,43 +61,25 @@ class _HousingScreenState extends State<HousingScreen> {
     });
   }
 
-  Future<void> _addHouse() async {
-    if (_houseFormKey.currentState!.validate()) {
-      _houseFormKey.currentState!.save();
-      await _dbHelper.insertHouse({
-        'name': _houseName,
-        'location': _location,
-        'price': _price,
-        'renter': '',
-        'available': 1,
-      });
-      _loadHouses();
-      _houseName = '';
-      _location = '';
-      _price = 0;
-      Navigator.of(context).pop();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('House added successfully!')),
-      );
-    }
+  Future<void> _addHouse(String name, String location, int price) async {
+    await _dbHelper.insertHouse({
+      'name': name,
+      'location': location,
+      'price': price,
+      'renter': '',
+      'available': 1,
+    });
+    _loadHouses();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('House added successfully!')),
+    );
   }
 
-  Future<void> _addRenter() async {
-    if (_renterFormKey.currentState!.validate()) {
-      _renterFormKey.currentState!.save();
-      await _dbHelper.updateHouseAvailability(_selectedHouseId!, 0);
-      await _dbHelper.updateRenter(
-        _selectedHouseId!,
-        _renterName,
-        _renterEmail,
-        _renterContactNumber,
-      );
+  Future<void> _addRenter(int? houseId, String name, String email, String contactNumber) async {
+    if (houseId != null) {
+      await _dbHelper.updateHouseAvailability(houseId, 0);
+      await _dbHelper.updateRenter(houseId, name, email, contactNumber);
       _loadHouses();
-      _renterName = '';
-      _renterEmail = '';
-      _renterContactNumber = '';
-      _selectedHouseId = null;
-      Navigator.of(context).pop();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Renter assigned successfully!')),
       );
@@ -112,61 +92,13 @@ class _HousingScreenState extends State<HousingScreen> {
       builder: (context) {
         return AlertDialog(
           title: Text('Add House'),
-          content: Form(
-            key: _houseFormKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextFormField(
-                  decoration: InputDecoration(labelText: 'House Name', border: OutlineInputBorder()),
-                  onSaved: (value) {
-                    _houseName = value!;
-                  },
-                  validator: (value) {
-                    if (value!.isEmpty) {
-                      return 'Please enter house name';
-                    }
-                    return null;
-                  },
-                ),
-                SizedBox(height: 10),
-                TextFormField(
-                  decoration: InputDecoration(labelText: 'Location', border: OutlineInputBorder()),
-                  onSaved: (value) {
-                    _location = value!;
-                  },
-                  validator: (value) {
-                    if (value!.isEmpty) {
-                      return 'Please enter location';
-                    }
-                    return null;
-                  },
-                ),
-                SizedBox(height: 10),
-                TextFormField(
-                  decoration: InputDecoration(labelText: 'Rent per Month', border: OutlineInputBorder()),
-                  keyboardType: TextInputType.number,
-                  onSaved: (value) {
-                    _price = int.parse(value!);
-                  },
-                  validator: (value) {
-                    if (value!.isEmpty) {
-                      return 'Please enter price';
-                    }
-                    return null;
-                  },
-                ),
-              ],
-            ),
+          content: HouseFormWidget(
+            formKey: _houseFormKey,
+            onSubmit: (name, location, price) {
+              _addHouse(name, location, price);
+              Navigator.of(context).pop();
+            },
           ),
-          actions: [
-            ElevatedButton(
-              onPressed: () {
-                _addHouse();
-              },
-              child: Text('Add House'),
-            ),
-          ],
         );
       },
     );
@@ -178,187 +110,187 @@ class _HousingScreenState extends State<HousingScreen> {
       builder: (context) {
         return AlertDialog(
           title: Text('Assign Renter'),
-          content: Form(
-            key: _renterFormKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
+          content: RenterFormWidget(
+            formKey: _renterFormKey,
+            filteredHouses: _filteredHouses,
+            onSubmit: (houseId, name, email, contactNumber) {
+              _addRenter(houseId, name, email, contactNumber);
+              Navigator.of(context).pop();
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildHouseCard(Map<String, dynamic> house) {
+    bool isAvailable = house['available'] == 1;
+    return Card(
+      elevation: 6,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               children: [
-                DropdownButtonFormField<int>(
-                  decoration: InputDecoration(labelText: 'Select House', border: OutlineInputBorder()),
-                  items: _filteredHouses
-                      .where((house) => house['available'] == 1)
-                      .map((house) {
-                    return DropdownMenuItem<int>(
-                      value: house['id'],
-                      child: Text('${house['name']} - \$${house['price']}'),
-                    );
-                  }).toList(),
-                  onChanged: (value) {
-                    setState(() {
-                      _selectedHouseId = value;
-                    });
-                  },
-                  validator: (value) {
-                    if (value == null) {
-                      return 'Please select a house';
-                    }
-                    return null;
-                  },
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(house['name'], style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                      SizedBox(height: 6),
+                      Text(house['location'], style: TextStyle(color: Colors.grey[700])),
+                      SizedBox(height: 8),
+                      Text("\$${house['price']}/month", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                    ],
+                  ),
                 ),
-                SizedBox(height: 10),
-                TextFormField(
-                  decoration: InputDecoration(labelText: 'Renter Name', border: OutlineInputBorder()),
-                  onSaved: (value) {
-                    _renterName = value!;
-                  },
-                  validator: (value) {
-                    if (value!.isEmpty) {
-                      return 'Please enter renter name';
-                    }
-                    return null;
-                  },
+                Icon(
+                  isAvailable ? Icons.check_circle : Icons.cancel,
+                  color: isAvailable ? Colors.green : Colors.red,
+                  size: 24,
                 ),
-                SizedBox(height: 10),
-                TextFormField(
-                  decoration: InputDecoration(labelText: 'Renter Email', border: OutlineInputBorder()),
-                  onSaved: (value) {
-                    _renterEmail = value!;
-                  },
-                  validator: (value) {
-                    if (value!.isEmpty) {
-                      return 'Please enter renter email';
-                    }
-                    return null;
-                  },
-                ),
-                SizedBox(height: 10),
-                TextFormField(
-                  decoration: InputDecoration(labelText: 'Renter Contact Number', border: OutlineInputBorder()),
-                  onSaved: (value) {
-                    _renterContactNumber = value!;
-                  },
-                  validator: (value) {
-                    if (value!.isEmpty) {
-                      return 'Please enter renter contact number';
-                    }
-                    return null;
-                  },
+                SizedBox(width: 4),
+                Container(
+                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: isAvailable ? Colors.green[100] : Colors.red[100],
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    isAvailable ? 'Available' : 'Rented',
+                    style: TextStyle(
+                      color: isAvailable ? Colors.green : Colors.red,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
               ],
             ),
-          ),
-          actions: [
+            SizedBox(height: 8),
             ElevatedButton(
               onPressed: () {
-                _addRenter();
+                // Perform action based on availability
               },
-              child: Text('Assign Renter'),
+              child: Text(isAvailable ? 'Assign Renter' : 'View Details'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.deepPurple,
+                padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                elevation: 2,
+              ),
             ),
           ],
-        );
-      },
+        ),
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Houses'),
-        backgroundColor: Colors.deepPurple,
-        actions: [
-          IconButton(
-            icon: Icon(Icons.add),
-            onPressed: _showAddHouseDialog,
+      body: CustomScrollView(
+        slivers: [
+          SliverAppBar(
+            expandedHeight: 180,
+            floating: true,
+            pinned: true,
+            backgroundColor: Colors.deepPurple,
+            elevation: 6,
+            shadowColor: Colors.deepPurpleAccent.withOpacity(0.4),
+            flexibleSpace: FlexibleSpaceBar(
+              titlePadding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
+              title: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Property Management', style: TextStyle(color: Colors.white)),
+                  Row(
+                    children: [
+                      ElevatedButton.icon(
+                        onPressed: _showAddHouseDialog,
+                        icon: Icon(Icons.add),
+                        label: Text('Add House'),
+                        style: ElevatedButton.styleFrom(
+                          foregroundColor: Colors.deepPurple, backgroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          elevation: 4,
+                        ),
+                      ),
+                      SizedBox(width: 8),
+                      ElevatedButton.icon(
+                        onPressed: _showAddRenterDialog,
+                        icon: Icon(Icons.person_add),
+                        label: Text('Add Renter'),
+                        style: ElevatedButton.styleFrom(
+                          foregroundColor: Colors.deepPurple, backgroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          elevation: 4,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
           ),
-          IconButton(
-            icon: Icon(Icons.person_add),
-            onPressed: _showAddRenterDialog,
-          ),
-        ],
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    decoration: InputDecoration(
-                      labelText: 'Search Houses',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.search),
-                    ),
-                    onChanged: (value) {
+          SliverPadding(
+            padding: EdgeInsets.all(16),
+            sliver: SliverToBoxAdapter(
+              child: Column(
+                children: [
+                  SearchAndFilterWidget(
+                    searchQuery: _searchQuery,
+                    availabilityFilter: _availabilityFilter,
+                    onSearchChanged: (value) {
                       setState(() {
                         _searchQuery = value;
                         _applyFilters();
                       });
                     },
+                    onFilterChanged: (value) {
+                      setState(() {
+                        _availabilityFilter = value!;
+                        _applyFilters();
+                      });
+                    },
                   ),
-                ),
-                SizedBox(width: 10),
-                DropdownButton<String>(
-                  value: _availabilityFilter,
-                  onChanged: (value) {
-                    setState(() {
-                      _availabilityFilter = value!;
-                      _applyFilters();
-                    });
-                  },
-                  items: [
-                    DropdownMenuItem(
-                      value: 'All',
-                      child: Text('All'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'Available',
-                      child: Text('Available'),
-                    ),
-                    DropdownMenuItem(
-                      value: 'Rented',
-                      child: Text('Rented'),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            SizedBox(height: 16),
-            Expanded(
-              child: ListView.builder(
-                itemCount: _filteredHouses.length,
-                itemBuilder: (context, index) {
-                  final house = _filteredHouses[index];
-                  return Card(
-                    margin: EdgeInsets.symmetric(vertical: 8),
-                    elevation: 5,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: ListTile(
-                      title: Text(
-                        house['name'],
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      subtitle: Text(
-                        '${house['location']} - \$${house['price']}',
-                        style: TextStyle(color: Colors.grey[600]),
-                      ),
-                      trailing: Text(
-                        house['available'] == 1 ? 'Available' : 'Rented',
-                        style: TextStyle(
-                          color: house['available'] == 1 ? Colors.green : Colors.red,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  );
-                },
+                  SizedBox(height: 16),
+                ],
               ),
             ),
-          ],
-        ),
+          ),
+          SliverPadding(
+            padding: EdgeInsets.symmetric(horizontal: 16),
+            sliver: _isLoading
+                ? SliverFillRemaining(
+                    child: Center(child: CircularProgressIndicator()),
+                  )
+                : _filteredHouses.isEmpty
+                    ? SliverFillRemaining(
+                        child: Center(child: Text('No houses available')),
+                      )
+                    : SliverList(
+                        delegate: SliverChildBuilderDelegate(
+                          (context, index) {
+                            final house = _filteredHouses[index];
+                            return Padding(
+                              padding: const EdgeInsets.symmetric(vertical: 8.0),
+                              child: _buildHouseCard(house),
+                            );
+                          },
+                          childCount: _filteredHouses.length,
+                        ),
+                      ),
+          ),
+        ],
       ),
     );
   }
