@@ -52,7 +52,9 @@ class _PaymentScreenState extends State<PaymentScreen> {
                 'Months Paid: ${house['months_paid']}',
               ),
               trailing: ElevatedButton(
-                onPressed: house['paid'] == 1 ? null : () => _markAsPaid(house['id']),
+                onPressed: house['renter'] != null && house['paid'] == 0
+                    ? () => _markAsPaid(house['id'])
+                    : null, // Disable button if no renter or already paid
                 child: Text('Mark Paid'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: house['paid'] == 1 ? Colors.green : Colors.blue,

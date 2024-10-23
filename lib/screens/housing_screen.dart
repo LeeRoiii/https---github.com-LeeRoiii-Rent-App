@@ -75,7 +75,8 @@ class _HousingScreenState extends State<HousingScreen> {
     );
   }
 
-  Future<void> _addRenter(int? houseId, String name, String email, String contactNumber) async {
+  Future<void> _addRenter(
+      int? houseId, String name, String email, String contactNumber) async {
     if (houseId != null) {
       await _dbHelper.updateHouseAvailability(houseId, 0);
       await _dbHelper.updateRenter(houseId, name, email, contactNumber);
@@ -104,15 +105,18 @@ class _HousingScreenState extends State<HousingScreen> {
     );
   }
 
-  void _showAddRenterDialog() {
+  void _showAddRenterDialog(Map<String, dynamic> house) {
     showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: Text('Assign Renter'),
+          title: Text('Assign Renter for ${house['name']}'),
           content: RenterFormWidget(
             formKey: _renterFormKey,
-            filteredHouses: _filteredHouses,
+            houseId: house['id'], // Pass the house ID to the widget
+            houseName: house['name'], // Pass the house name
+            houseLocation: house['location'], // Pass the house location
+            housePrice: house['price'], // Pass the house price
             onSubmit: (houseId, name, email, contactNumber) {
               _addRenter(houseId, name, email, contactNumber);
               Navigator.of(context).pop();
@@ -126,7 +130,7 @@ class _HousingScreenState extends State<HousingScreen> {
   Widget _buildHouseCard(Map<String, dynamic> house) {
     bool isAvailable = house['available'] == 1;
     return Card(
-      elevation: 6,
+      elevation: 8,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -139,47 +143,80 @@ class _HousingScreenState extends State<HousingScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(house['name'], style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                      // House name
+                      Text(
+                        house['name'],
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black,
+                        ),
+                      ),
                       SizedBox(height: 6),
-                      Text(house['location'], style: TextStyle(color: Colors.grey[700])),
+                      // Location row
+                      Row(
+                        children: [
+                          Icon(Icons.location_on, color: Colors.grey[600], size: 16),
+                          SizedBox(width: 4),
+                          Text(
+                            house['location'],
+                            style: TextStyle(color: Colors.grey[700], fontSize: 14),
+                          ),
+                        ],
+                      ),
                       SizedBox(height: 8),
-                      Text("\$${house['price']}/month", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                      // Price row
+                      Row(
+                        children: [
+                          Icon(Icons.attach_money, color: Colors.grey[600], size: 16),
+                          SizedBox(width: 4),
+                          Text(
+                            "\$${house['price']}/month",
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                              color: Colors.black,
+                            ),
+                          ),
+                        ],
+                      ),
                     ],
                   ),
                 ),
-                Icon(
-                  isAvailable ? Icons.check_circle : Icons.cancel,
-                  color: isAvailable ? Colors.green : Colors.red,
-                  size: 24,
-                ),
-                SizedBox(width: 4),
+                // Availability label
                 Container(
                   padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: isAvailable ? Colors.green[100] : Colors.red[100],
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
                     isAvailable ? 'Available' : 'Rented',
                     style: TextStyle(
                       color: isAvailable ? Colors.green : Colors.red,
                       fontWeight: FontWeight.bold,
+                      fontSize: 12,
                     ),
                   ),
                 ),
               ],
             ),
-            SizedBox(height: 8),
+            SizedBox(height: 16),
+            // Assign Renter / View Details button
             ElevatedButton(
               onPressed: () {
-                // Perform action based on availability
+                if (isAvailable) {
+                  _showAddRenterDialog(house); // Pass the entire house object
+                } else {
+                  // Handle view details if not available
+                }
               },
               child: Text(isAvailable ? 'Assign Renter' : 'View Details'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.deepPurple,
-                padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                backgroundColor: Colors.blue, // Set button color to blue
+                padding: EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(16),
                 ),
                 elevation: 2,
               ),
@@ -193,104 +230,66 @@ class _HousingScreenState extends State<HousingScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            expandedHeight: 180,
-            floating: true,
-            pinned: true,
-            backgroundColor: Colors.deepPurple,
-            elevation: 6,
-            shadowColor: Colors.deepPurpleAccent.withOpacity(0.4),
-            flexibleSpace: FlexibleSpaceBar(
-              titlePadding: EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
-              title: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('Property Management', style: TextStyle(color: Colors.white)),
-                  Row(
-                    children: [
-                      ElevatedButton.icon(
-                        onPressed: _showAddHouseDialog,
-                        icon: Icon(Icons.add),
-                        label: Text('Add House'),
-                        style: ElevatedButton.styleFrom(
-                          foregroundColor: Colors.deepPurple, backgroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          elevation: 4,
-                        ),
-                      ),
-                      SizedBox(width: 8),
-                      ElevatedButton.icon(
-                        onPressed: _showAddRenterDialog,
-                        icon: Icon(Icons.person_add),
-                        label: Text('Add Renter'),
-                        style: ElevatedButton.styleFrom(
-                          foregroundColor: Colors.deepPurple, backgroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          elevation: 4,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+      appBar: AppBar(
+        title: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text('Housing List', style: TextStyle(color: Colors.white)),
+            IconButton(
+              onPressed: _showAddHouseDialog,
+              icon: Icon(Icons.add),
+              color: Colors.white,
             ),
-          ),
-          SliverPadding(
-            padding: EdgeInsets.all(16),
-            sliver: SliverToBoxAdapter(
-              child: Column(
-                children: [
-                  SearchAndFilterWidget(
-                    searchQuery: _searchQuery,
-                    availabilityFilter: _availabilityFilter,
-                    onSearchChanged: (value) {
-                      setState(() {
-                        _searchQuery = value;
-                        _applyFilters();
-                      });
-                    },
-                    onFilterChanged: (value) {
-                      setState(() {
-                        _availabilityFilter = value!;
-                        _applyFilters();
-                      });
-                    },
-                  ),
-                  SizedBox(height: 16),
-                ],
-              ),
+          ],
+        ),
+        backgroundColor: Colors.blue, // Set AppBar color to blue
+        elevation: 6,
+        shadowColor: Colors.blueAccent.withOpacity(0.4),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            SearchAndFilterWidget(
+              searchQuery: _searchQuery,
+              availabilityFilter: _availabilityFilter,
+              onSearchChanged: (value) {
+                setState(() {
+                  _searchQuery = value;
+                  _applyFilters();
+                });
+              },
+              onFilterChanged: (value) {
+                setState(() {
+                  _availabilityFilter = value!;
+                  _applyFilters();
+                });
+              },
             ),
-          ),
-          SliverPadding(
-            padding: EdgeInsets.symmetric(horizontal: 16),
-            sliver: _isLoading
-                ? SliverFillRemaining(
-                    child: Center(child: CircularProgressIndicator()),
-                  )
-                : _filteredHouses.isEmpty
-                    ? SliverFillRemaining(
-                        child: Center(child: Text('No houses available')),
-                      )
-                    : SliverList(
-                        delegate: SliverChildBuilderDelegate(
-                          (context, index) {
+            SizedBox(height: 16),
+            Expanded(
+              child: _isLoading
+                  ? Center(
+                      child: CircularProgressIndicator(
+                        color: Colors.blue,
+                        strokeWidth: 5,
+                      ),
+                    )
+                  : _filteredHouses.isEmpty
+                      ? Center(child: Text('No houses available'))
+                      : ListView.builder(
+                          itemCount: _filteredHouses.length,
+                          itemBuilder: (context, index) {
                             final house = _filteredHouses[index];
                             return Padding(
                               padding: const EdgeInsets.symmetric(vertical: 8.0),
                               child: _buildHouseCard(house),
                             );
                           },
-                          childCount: _filteredHouses.length,
                         ),
-                      ),
-          ),
-        ],
+            ),
+          ],
+        ),
       ),
     );
   }
